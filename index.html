@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit Leads</title>
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--line:#e3e6ea;--txt:#1f2933;--muted:#6b7280;}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+#gate{max-width:340px;margin:18vh auto;background:var(--card);padding:28px;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.07);text-align:center}
+#gate h1{font-size:17px;margin:0 0 18px}
+input,button{font:inherit}
+#pw{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;text-align:center}
+button{margin-top:12px;padding:10px 18px;border:0;border-radius:8px;background:#1f2933;color:#fff;cursor:pointer}
+#err{color:#c0392b;font-size:13px;min-height:18px;margin-top:8px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 18px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h2{font-size:15px;margin:0;flex:0 0 auto}
+#q{flex:1 1 200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px}
+select{padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+#meta{font-size:12px;color:var(--muted)}
+.wrap{overflow:auto;padding:0 0 60px}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:#eef1f5;font-weight:600;white-space:nowrap;z-index:2}
+td.notes{max-width:320px;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;white-space:nowrap}
+.wa{color:#128c7e;text-decoration:none;font-weight:600}
+.rel-r{background:#f4cccc}.rel-n{background:#fff2cc}
+tr:hover td{background:#fafbfc}
+</style>
+</head>
+<body>
+<div id="gate">
+  <h1>Cockpit Leads</h1>
+  <input id="pw" type="password" placeholder="Code d'accès" autofocus>
+  <div id="err"></div>
+  <button onclick="go()">Entrer</button>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h2>Cockpit Leads</h2>
+    <input id="q" placeholder="Rechercher (nom, ville, email…)">
+    <select id="f"><option value="">Tous les statuts</option></select>
+    <span id="meta"></span>
+  </header>
+  <div class="wrap"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+</div>
+
+<script>
+var API="https://script.google.com/macros/s/AKfycbxPRcCkirylC2YrOt9cZlTZv5Isa8Gpyp0__n7oKugJsFVRTCjvOzr4y7Sgk1yTvIJn/exec";
+var DATA=null;
+var SC={"En attente":"#cfe2f3","Call Planifié":"#fff2cc","Présentation du mandat":"#d9d2e9","Client pas intéréssé":"#d9d9d9","Signature du mandat":"#d9ead3","Sans suite prospect":"#f4cccc","Sans suite moi":"#ea9999"};
+var PC={"Faible":"#d0e0e3","Haute":"#f9cb9c","Élevée":"#ea9999"};
+
+function go(){
+  var k=document.getElementById('pw').value.trim();
+  if(!k)return;
+  document.getElementById('err').textContent="Chargement…";
+  fetch(API+"?key="+encodeURIComponent(k)).then(function(r){return r.json()}).then(function(d){
+    if(d.error){document.getElementById('err').textContent="Code incorrect";return;}
+    DATA=d;
+    document.getElementById('gate').style.display='none';
+    document.getElementById('app').style.display='block';
+    build();
+  }).catch(function(){document.getElementById('err').textContent="Erreur de connexion";});
+}
+document.getElementById('pw').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+
+function wa(t){
+  var n=String(t||'').replace(/[^0-9]/g,'');
+  if(!n)return '';
+  if(n.indexOf('0')===0)n='41'+n.substring(1);
+  return n;
+}
+function esc(s){return String(s==null?'':s).replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]});}
+
+function build(){
+  var h=DATA.headers.slice();
+  h.splice(3,0,'WhatsApp');
+  document.getElementById('th').innerHTML='<tr>'+h.map(function(x){return '<th>'+esc(x)+'</th>'}).join('')+'</tr>';
+  var st={};DATA.rows.forEach(function(r){if(r[11])st[r[11]]=1;});
+  var sel=document.getElementById('f');
+  Object.keys(st).sort().forEach(function(s){var o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+  sel.onchange=render;
+  document.getElementById('q').oninput=render;
+  render();
+}
+
+function render(){
+  var q=document.getElementById('q').value.toLowerCase();
+  var f=document.getElementById('f').value;
+  var rows=DATA.rows.filter(function(r){
+    if(f&&r[11]!==f)return false;
+    if(!q)return true;
+    return r.join(' ').toLowerCase().indexOf(q)>-1;
+  });
+  document.getElementById('tb').innerHTML=rows.map(function(r){
+    var n=wa(r[2]);
+    var link=n?'<a class="wa" target="_blank" href="https://wa.me/'+n+'">Ouvrir</a>':'';
+    var cls=r[14]==='À RELANCER'?'rel-r':(r[14]==='NOUVEAU'?'rel-n':'');
+    var c=[];
+    for(var i=0;i<17;i++){
+      var v=esc(r[i]);
+      if(i===11&&r[11])v='<span class="tag" style="background:'+(SC[r[11]]||'#eee')+'">'+v+'</span>';
+      if(i===12&&r[12])v='<span class="tag" style="background:'+(PC[r[12]]||'#eee')+'">'+v+'</span>';
+      if(i===14&&cls)v='<span class="tag '+cls+'">'+v+'</span>';
+      c.push('<td'+(i===9?' class="notes"':'')+'>'+v+'</td>');
+      if(i===2)c.push('<td>'+link+'</td>');
+    }
+    return '<tr>'+c.join('')+'</tr>';
+  }).join('');
+  var d=new Date(DATA.updated);
+  document.getElementById('meta').textContent=rows.length+' lead(s) — maj '+d.toLocaleString('fr-CH');
+}
+</script>
+</body>
+</html>
